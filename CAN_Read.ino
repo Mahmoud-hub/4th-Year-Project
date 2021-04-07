@@ -1,7 +1,10 @@
 /****************************************************************************
 CAN Read on PORT 1
 
-CAN ID 1: Throttle control
+  CAN ID 1: Throttle control
+  CAN ID 2: Braking Control
+  CAN ID 3: Traffic Emergency Brake Sensor
+  CAN ID 4: Region Speed limit
 *************************************************************************/
 
 #include <Canbus.h>
@@ -26,22 +29,19 @@ void loop(){
   tCAN message;
   if (mcp2515_check_message()){
       if (mcp2515_get_message(&message)){
-                 
-                 if(message.data[0] <= 0x01) timeCount = 0;
-                 Serial.print(timeCount, DEC);
+                 if(message.id == 0x1 && message.data[0] == 0x00){
+                  timeCount = 0;
+                 }
+                 Serial.print(timeCount, DEC); //Current Time
+                 Serial.print(":"); 
+                 Serial.print(message.id,HEX); //ID is first printed
                  Serial.print(":");
-                 //Serial.print("ID: ");
-                 //Serial.print(message.id,HEX);
-                 //Serial.print(", ");
-                 //Serial.print("Data: ");
-                 
-                 for(int i=0;i<message.header.length;i++){	
-                    Serial.print(message.data[i],DEC);
-                    //Serial.print(" ");
-                  }
-                 
+                 Serial.print(message.data[0],DEC); //Data contents
+                 Serial.print(":");
+                 Serial.print(message.data[1],DEC); //Validation for if the code is malicious
+                                                    //Used for validation and does not add value for simulation
                  Serial.println("");
                  timeCount++;
-             }
+      }
   }
 }
