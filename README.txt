@@ -20,7 +20,14 @@ recorder.py
 This is the script used to collect data from the reciever ECU.
 
 IDS Code:
+IDS.py
+This is the Phase 1 IDS code with the machine learning anomaly detection implementation.
 
+IDSV2.py
+This is the Phase 2 IDS code with the anomaly detection Standard Deviation method.
+
+IDSV3.py
+This is the Phase 3 IDS code with the anomaly detection Standard Deviation method and malicious data detection logic.
 
 CSV:
 Sample1.csv and Sample2.csv (Phase 1)
