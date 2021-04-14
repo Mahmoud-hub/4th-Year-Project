@@ -1,6 +1,11 @@
 /****************************************************************************
   CAN WRITE on PORT 0
 
+ This code is designed to be the Sending ECU module. The purpose of this 
+ code is to run a normal simulation of where an individual is applying
+ the brakes. Also, in random simulation runs, an object is detected by
+ the ECU and as such, the emergency brake is applied.
+
   CAN ID 1: Throttle control
   CAN ID 2: Braking Control
   CAN ID 3: Forward Colision Warning
@@ -45,9 +50,11 @@ void setup(){
   cli();//disable interrupts
 }
 //********************************Timer ISR*********************************//
+//A timer interrupt is being used to randomly trigger 
+//the application of braking 
 ISR(TIMER1_COMPA_vect){
  if(count >= randomVal){
-   modelRun = 1;
+   modelRun = 1; //Used to initiate braking
    count = 0;
    cli();
   }
@@ -58,27 +65,32 @@ ISR(TIMER1_COMPA_vect){
 
 //********************************Main Loop*********************************//
 void loop(){
-  tCAN message;
-  tCAN messageA;
-  tCAN messageB;
+  tCAN message; //Current Car Speed Packet
+  tCAN messageA; //Current Braking Percentage Packet
+  tCAN messageB; //Forward Collision Warning Packet
   
   interrupts();
-  hexConvertBrakeRate();
-  //If the time for random number generator is met
+  hexConvertBrakeRate(); //Determine the brake rate used per execution
+  
+  //If the time for random number generator is met, the model will run
    if(modelRun == 1){
-     carBrakeAdjust();
-     carSpeedAdjust();
+     carBrakeAdjust(); //Car braking percentage is adjusted
+     carSpeedAdjust(); //Car speed is adjusted according to braking percentage
    }
  
-  //Once all iterations of the message are read, reset message counter
+  //Once the model reaches a speed of 0 km/hr, reset the simulation 
+  //to repeat the process
   if(modelRun == 1 && currentCarSpeed <= 0x00){
-    currentCarSpeed = 0x00;
+    currentCarSpeed = 0x00; 
     brakeStatusPercentage = 0x00;
     modelRun = 0;
     SimulationCounter++;
     emerBRAKEFLAG = 0x00;
     randomVal = randomNum();
     emerStart = 1;
+
+    //The following is used to determine if the emergency braking scenario will
+    //be ran in this model run
     if(SimulationCounter >= runEmergencyBrake){
       runEmergencyBrake = randomNum();
       SimulationCounter = 0;
@@ -86,10 +98,10 @@ void loop(){
                             //randomValue generated, braking will 
                             //occur in this model run
     }
-    
      sei();
   }
 
+  //Current Car Speed Packet is Created and Sent over Datalines
   message.id = 0x1; //ID Number for car Speed
   message.header.rtr = 0;
   message.header.length = 2;
@@ -99,56 +111,73 @@ void loop(){
   mcp2515_bit_modify(CANCTRL, (1 << REQOP2) | (1 << REQOP1) | (1 << REQOP0), 0);
   mcp2515_send_message(&message);
 
+  //This had to be implemented as the model would sometimes go bellow 0 km/hr with the 
+  //calculations so a 0 km/hr message is first transmitted and then the model is
+  //officially reset back to 60 km/hr
   if(currentCarSpeed <= 0x00){
     currentCarSpeed = 0x3C;
   }
 
   delay(10);
 
- messageA.id = 0x2; //ID Number for car Brake
- messageA.header.rtr = 0;
- messageA.header.length = 2;
- messageA.data[0] = brakeStatusPercentage;
- messageA.data[1] = 0x00; //Bit used to identify this is not malicious, used to identify
+  //Current Car Braking Percentage is Created and Sent over Datalines
+  messageA.id = 0x2; //ID Number for car Brake
+  messageA.header.rtr = 0;
+  messageA.header.length = 2;
+  messageA.data[0] = brakeStatusPercentage;
+  messageA.data[1] = 0x00; //Bit used to identify this is not malicious, used to identify
                           //in code for verification and does not add value in simulation
- mcp2515_bit_modify(CANCTRL, (1 << REQOP2) | (1 << REQOP1) | (1 << REQOP0), 0);
- mcp2515_send_message(&messageA);
+  mcp2515_bit_modify(CANCTRL, (1 << REQOP2) | (1 << REQOP1) | (1 << REQOP0), 0);
+  mcp2515_send_message(&messageA);
 
- delay(10);
-
- messageB.id = 0x3; //ID Number for Emergency car Brake
- messageB.header.rtr = 0;
- messageB.header.length = 2;
- messageB.data[0] = emerBRAKEFLAG;
- messageB.data[1] = 0x00; //Bit used to identify this is not malicious, used to identify
+  delay(10);
+  
+  //Current Forward Collision Warning Reading is Created and Sent over Datalines
+  messageB.id = 0x3; //ID Number for Forward Collision Waring (Emergency Brake Application)
+  messageB.header.rtr = 0;
+  messageB.header.length = 2;
+  messageB.data[0] = emerBRAKEFLAG;
+  messageB.data[1] = 0x00; //Bit used to identify this is not malicious, used to identify
                           //in code for verification and does not add value in simulation
- mcp2515_bit_modify(CANCTRL, (1 << REQOP2) | (1 << REQOP1) | (1 << REQOP0), 0);
- mcp2515_send_message(&messageB);
+  mcp2515_bit_modify(CANCTRL, (1 << REQOP2) | (1 << REQOP1) | (1 << REQOP0), 0);
+  mcp2515_send_message(&messageB);
 
   delay(10);
 }
 
+//********************************carSpeedAdjust*********************************//
+//This adjusts the current car speed
 void carSpeedAdjust(){
+  //If the model is running with no emergency braking
   if(emerBRAKEFLAG == 0x00){
     currentCarSpeed = (currentCarSpeed - ((0x01) * brakeStatusPercentage));
   }
 
+  //If the model is running with emergency braking
   if(emerBRAKEFLAG == 0x01){
     currentCarSpeed = currentCarSpeed - 0xA;
   }
 }
 
+//********************************carBrakeAdjust********************************//
+//Adjust the braking percentage so braking of the car can be simulated.
 void carBrakeAdjust(){
   if(emerBRAKEFLAG == 0x00){
     brakeStatusPercentage = (brakeStatusPercentage + brakeRate);
   }
 }
 
-
+//********************************randomNum*************************************//
+//Used to randomly generate the human reaction time from 1 to 6 miliseconds to then
+//start a model iteration
 int randomNum(){
   return (random(0, 6));
 }
 
+//**************************hexConvertBrakeRate*********************************//
+//This is used to randomly determine the braking rate every iteration and 
+//convert that value into HEX as the data packet contents for the CAN 
+//messages is in HEX
 int hexConvertBrakeRate(){
   switch(randomNum()){
     case 1:
