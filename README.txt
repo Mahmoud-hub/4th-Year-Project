@@ -23,10 +23,10 @@ IDS Code:
 
 
 CSV:
-Sample 1.csv and Sample 2.csv (Phase 1)
+Sample1.csv and Sample2.csv (Phase 1)
  
-Fault Injected.csv and Fault Injected v2.csv (Phase 2)
+FaultInjected.csv and FaultInjectedv2.csv (Phase 2)
   
-Phase 3.csv and Phase 3 revised.csv (Phase 3)
+Phase3.csv and Phase3revised.csv (Phase 3)
 
 Phase 3 of the prject is complete and all milestones for the project have been achieved.
